@@ -53,6 +53,27 @@ impl Cursor {
     }
 }
 
+fn preprocess<T: Write>(out: &mut T) {
+    let (terminal_size_x, terminal_size_y) = termion::terminal_size().unwrap();
+
+    // cursor::Goto() は (1, 1)-based
+    write!(
+        out,
+        "{}{}{}{}{}{}",
+        clear::All,
+        cursor::Goto(1, terminal_size_y),
+        color::Bg(color::Yellow),
+        " ".repeat(terminal_size_x.try_into().unwrap()),
+        color::Bg(color::Reset),
+        cursor::Goto(1, 1)
+    ).unwrap();
+    out.flush().unwrap();
+}
+
+fn postprocess<T: Write>(out: &mut T) {
+    write!(out, "{}{}", clear::All, cursor::Goto(1, 1)).unwrap();
+}
+
 fn main() {
     let (terminal_size_x, terminal_size_y) = termion::terminal_size().unwrap();
     // カーソルの座標を保持する構造体も (1, 1)-based にしておく
@@ -68,18 +89,7 @@ fn main() {
     let stdin = stdin();
     let mut stdout = stdout().into_raw_mode().unwrap();
 
-    // cursor::Goto() は (1, 1)-based
-    write!(
-        stdout,
-        "{}{}{}{}{}{}",
-        clear::All,
-        cursor::Goto(1, terminal_size_y),
-        color::Bg(color::Yellow),
-        " ".repeat(terminal_size_x.try_into().unwrap()),
-        color::Bg(color::Reset),
-        cursor::Goto(1, 1)
-    ).unwrap();
-    stdout.flush().unwrap();
+    preprocess(&mut stdout);
 
     for c in stdin.keys() {
         match c.unwrap() {
@@ -109,8 +119,7 @@ fn main() {
         stdout.flush().unwrap();
     }
 
-    // Postprocess
-    write!(stdout, "{}{}", clear::All, cursor::Goto(1, 1)).unwrap();
+    postprocess(&mut stdout);
 
     // アプリ終了時に termion が後始末をしてターミナルを canonical mode に戻してくれる
 }
