@@ -7,30 +7,42 @@ use termion::raw::IntoRawMode;
 
 struct Cursor {
     x: u16,
-    y: u16
+    x_max: u16,
+    x_min: u16,
+    y: u16,
+    y_max: u16,
+    y_min: u16
 }
 
 impl Cursor {
     fn left(&mut self, x: u16) -> &mut Cursor {
-        self.x -= x;
+        if self.x > self.x_min {
+            self.x -= x;
+        }
 
         self
     }
 
     fn right(&mut self, x: u16) -> &mut Cursor {
-        self.x += x;
+        if self.x < self.x_max {
+            self.x += x;
+        }
 
         self
     }
 
     fn up(&mut self, y: u16) -> &mut Cursor {
-        self.y -= y;
+        if self.y > self.y_min {
+            self.y -= y;
+        }
 
         self
     }
 
     fn down(&mut self, y: u16) -> &mut Cursor {
-        self.y += y;
+        if self.y < self.y_max {
+            self.y += y;
+        }
 
         self
     }
@@ -46,7 +58,11 @@ fn main() {
     // カーソルの座標を保持する構造体も (1, 1)-based にしておく
     let mut cursor = Cursor {
         x: 1,
-        y: 1
+        x_max: terminal_size_x,
+        x_min: 1,
+        y: 1,
+        y_max: terminal_size_y,
+        y_min: 1
     };
 
     let stdin = stdin();
