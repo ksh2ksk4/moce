@@ -10,6 +10,37 @@ struct Cursor {
     y: u16
 }
 
+impl Cursor {
+    fn left(&mut self, x: u16) -> &mut Cursor {
+        self.x -= x;
+
+        self
+    }
+
+    fn right(&mut self, x: u16) -> &mut Cursor {
+        self.x += x;
+
+        self
+    }
+
+    fn up(&mut self, y: u16) -> &mut Cursor {
+        self.y -= y;
+
+        self
+    }
+
+    fn down(&mut self, y: u16) -> &mut Cursor {
+        self.y += y;
+
+        self
+    }
+
+    fn draw<T: Write>(&mut self, out: &mut T) {
+        write!(out, "{}", cursor::Goto(self.x, self.y)).unwrap();
+        out.flush().unwrap();
+    }
+}
+
 fn main() {
     let (terminal_size_x, terminal_size_y) = termion::terminal_size().unwrap();
     // カーソルの座標を保持する構造体も (1, 1)-based にしておく
@@ -38,25 +69,20 @@ fn main() {
         match c.unwrap() {
             Key::Ctrl('q') => break,
             Key::Left => {
-                cursor.x -= 1;
-                print!("{}", cursor::Goto(cursor.x, cursor.y));
+                cursor.left(1).draw(&mut stdout);
             },
             Key::Right => {
-                cursor.x += 1;
-                print!("{}", cursor::Goto(cursor.x, cursor.y));
+                cursor.right(1).draw(&mut stdout);
             },
             Key::Up => {
-                cursor.y -= 1;
-                print!("{}", cursor::Goto(cursor.x, cursor.y));
+                cursor.up(1).draw(&mut stdout);
             },
             Key::Down => {
-                cursor.y += 1;
-                print!("{}", cursor::Goto(cursor.x, cursor.y));
+                cursor.down(1).draw(&mut stdout);
             },
             _ => {
                 print!("<other>");
-                cursor.x += 7;
-                print!("{}", cursor::Goto(cursor.x, cursor.y));
+                cursor.right(7).draw(&mut stdout);
             }
         }
 
