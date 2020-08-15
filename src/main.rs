@@ -40,7 +40,8 @@ impl Cursor {
     }
 
     fn down(&mut self, y: u16) -> &mut Cursor {
-        if self.y < self.y_max {
+        // モードラインに入らないように
+        if self.y < self.y_max - 1 {
             self.y += y;
         }
 
