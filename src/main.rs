@@ -53,17 +53,15 @@ impl Cursor {
     }
 }
 
-fn preprocess<T: Write>(out: &mut T) {
-    let (terminal_size_x, terminal_size_y) = termion::terminal_size().unwrap();
-
+fn preprocess<T: Write>(out: &mut T, terminal_size: (u16, u16)) {
     // cursor::Goto() は (1, 1)-based
     write!(
         out,
         "{}{}{}{}{}{}",
         clear::All,
-        cursor::Goto(1, terminal_size_y),
+        cursor::Goto(1, terminal_size.1),
         color::Bg(color::Yellow),
-        " ".repeat(terminal_size_x.try_into().unwrap()),
+        " ".repeat(terminal_size.0.try_into().unwrap()),
         color::Bg(color::Reset),
         cursor::Goto(1, 1)
     ).unwrap();
@@ -75,21 +73,21 @@ fn postprocess<T: Write>(out: &mut T) {
 }
 
 fn main() {
-    let (terminal_size_x, terminal_size_y) = termion::terminal_size().unwrap();
+    let terminal_size = termion::terminal_size().unwrap();
     // カーソルの座標を保持する構造体も (1, 1)-based にしておく
     let mut cursor = Cursor {
         x: 1,
-        x_max: terminal_size_x,
+        x_max: terminal_size.0,
         x_min: 1,
         y: 1,
-        y_max: terminal_size_y,
+        y_max: terminal_size.1,
         y_min: 1
     };
 
     let stdin = stdin();
     let mut stdout = stdout().into_raw_mode().unwrap();
 
-    preprocess(&mut stdout);
+    preprocess(&mut stdout, terminal_size);
 
     for c in stdin.keys() {
         match c.unwrap() {
