@@ -1,4 +1,5 @@
 use std::io::{stdin, stdout, Write};
+use termion::{clear, cursor};
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
@@ -7,14 +8,8 @@ fn main() {
     let stdin = stdin();
     let mut stdout = stdout().into_raw_mode().unwrap();
 
-    write!(
-        stdout,
-        "{}{}{}",
-        termion::clear::All,
-        termion::cursor::Hide,
-        // cursor::Goto() は (1, 1)-based
-        termion::cursor::Goto(1, 1)
-    ).unwrap();
+    // cursor::Goto() は (1, 1)-based
+    write!(stdout, "{}{}{}", clear::All, cursor::Hide, cursor::Goto(1, 1)).unwrap();
     stdout.flush().unwrap();
 
     for c in stdin.keys() {
@@ -27,13 +22,7 @@ fn main() {
     }
 
     // Postprocess
-    write!(
-        stdout,
-        "{}{}{}",
-        termion::clear::All,
-        termion::cursor::Goto(1, 1),
-        termion::cursor::Show
-    ).unwrap();
+    write!(stdout, "{}{}{}", clear::All, cursor::Goto(1, 1), cursor::Show).unwrap();
 
-    // termion が後始末をしてくれるのでアプリ終了後にターミナルが raw mode のままということはない
+    // アプリ終了時に termion が後始末をしてターミナルを canonical mode に戻してくれる
 }
