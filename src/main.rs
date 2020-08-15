@@ -96,6 +96,10 @@ fn main() {
             Key::Down => {
                 cursor.down(1).draw(&mut stdout);
             },
+            Key::Char(c) => {
+                print!("{}", c);
+                cursor.right(1).draw(&mut stdout);
+            },
             _ => {
                 print!("<other>");
                 cursor.right(7).draw(&mut stdout);
