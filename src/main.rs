@@ -5,40 +5,42 @@ use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
 
-struct Cursor {
+struct Coordinate {
     x: u16,
-    x_max: u16,
-    x_min: u16,
-    y: u16,
-    y_max: u16,
-    y_min: u16
+    y: u16
+}
+
+struct Cursor {
+    current: Coordinate,
+    max: Coordinate,
+    min: Coordinate
 }
 
 impl Cursor {
     // Rust では move はキーワードらしい
     fn mv<T: Write>(&mut self, out: &mut T) {
-        write!(out, "{}", cursor::Goto(self.x, self.y)).unwrap();
+        write!(out, "{}", cursor::Goto(self.current.x, self.current.y)).unwrap();
     }
 
     fn left(&mut self, x: u16) -> &mut Cursor {
-        if self.x > self.x_min {
-            self.x -= x;
+        if self.current.x > self.min.x {
+            self.current.x -= x;
         }
 
         self
     }
 
     fn right(&mut self, x: u16) -> &mut Cursor {
-        if self.x < self.x_max {
-            self.x += x;
+        if self.current.x < self.max.x {
+            self.current.x += x;
         }
 
         self
     }
 
     fn up(&mut self, y: u16) -> &mut Cursor {
-        if self.y > self.y_min {
-            self.y -= y;
+        if self.current.y > self.min.y {
+            self.current.y -= y;
         }
 
         self
@@ -46,18 +48,18 @@ impl Cursor {
 
     fn down(&mut self, y: u16) -> &mut Cursor {
         // モードラインに入らないように
-        if self.y < self.y_max - 1 {
-            self.y += y;
+        if self.current.y < self.max.y - 1 {
+            self.current.y += y;
         }
 
         self
     }
 }
 
-fn preprocess<T: Write>(out: &mut T, terminal_size: (u16, u16), cursor: &mut Cursor) {
+fn preprocess<T: Write>(out: &mut T, cursor: &mut Cursor) {
     clear_terminal(out);
-    initialize_mode_line(out, terminal_size);
-    refresh_mode_line(out, terminal_size, cursor);
+    initialize_mode_line(out, cursor);
+    refresh_mode_line(out, cursor);
 
     out.flush().unwrap();
 }
@@ -72,53 +74,62 @@ fn clear_terminal<T: Write>(out: &mut T) {
     write!(out, "{}{}", clear::All, cursor::Goto(1, 1)).unwrap();
 }
 
-fn initialize_mode_line<T: Write>(out: &mut T, terminal_sizeg: (u16, u16)) {
+fn initialize_mode_line<T: Write>(out: &mut T, cursor: &mut Cursor) {
     write!(
         out,
         "{}{}{}{}{}{}{}",
         cursor::Hide,
-        cursor::Goto(1, terminal_size.1),
+        cursor::Goto(1, cursor.max.y),
         color::Bg(color::Yellow),
-        " ".repeat(terminal_size.0.try_into().unwrap()),
+        " ".repeat(cursor.max.x.try_into().unwrap()),
         color::Bg(color::Reset),
         cursor::Goto(1, 1),
         cursor::Show
     ).unwrap();
 }
 
-fn refresh_mode_line<T: Write>(out: &mut T, terminal_size: (u16, u16), cursor: &mut Cursor) {
+fn refresh_mode_line<T: Write>(out: &mut T, cursor: &mut Cursor) {
+    let x = cursor.current.x;
+    let y = cursor.current.y;
+
     write!(
         out,
         "{}{}{}{}{}{}{}{}{}",
         cursor::Hide,
-        cursor::Goto(1, terminal_size.1),
+        cursor::Goto(1, cursor.max.y),
         color::Bg(color::Yellow),
         color::Fg(color::Black),
-        format!("({:>3},{:>3})", cursor.x, cursor.y),
+        format!("({:>3},{:>3})", x, y),
         color::Fg(color::Reset),
         color::Bg(color::Reset),
-        cursor::Goto(cursor.x, cursor.y),
+        cursor::Goto(x, y),
         cursor::Show
     ).unwrap();
 }
 
 fn main() {
     let terminal_size = termion::terminal_size().unwrap();
-    // cursor::Goto() が (1, 1)-based であるため、カーソルの座標を保持する構造体も
+    // Termion が (1, 1)-based であるため、カーソルの座標を保持する構造体も
     // (1, 1)-based にしておく
     let mut cursor = Cursor {
-        x: 1,
-        x_max: terminal_size.0,
-        x_min: 1,
-        y: 1,
-        y_max: terminal_size.1,
-        y_min: 1
+        current: Coordinate {
+            x: 1,
+            y: 1
+        },
+        max: Coordinate {
+            x: terminal_size.0,
+            y: terminal_size.1
+        },
+        min: Coordinate {
+            x: 1,
+            y: 1
+        }
     };
 
     let stdin = stdin();
     let mut stdout = stdout().into_raw_mode().unwrap();
 
-    preprocess(&mut stdout, terminal_size, &mut cursor);
+    preprocess(&mut stdout, &mut cursor);
 
     for c in stdin.keys() {
         match c.unwrap() {
@@ -145,7 +156,7 @@ fn main() {
             }
         }
 
-        refresh_mode_line(&mut stdout, terminal_size, &mut cursor);
+        refresh_mode_line(&mut stdout, &mut cursor);
         stdout.flush().unwrap();
     }
 
