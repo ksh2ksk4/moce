@@ -1,10 +1,10 @@
 use std::convert::TryInto;
-use std::io::{stdin, stdout, Write};
+use std::io::{Stdout, Write};
 use std::str::from_utf8;
 use termion::{clear, color, cursor};
 use termion::event::Key;
 use termion::input::TermRead;
-use termion::raw::IntoRawMode;
+use termion::raw::{IntoRawMode, RawTerminal};
 
 // 改行は⏎(U+23ce: RETURN SYMBOL)で表示(UTF-8 では 0xe28f8e)
 const RETURN_SYMBOL: [u8; 3] = [0xe2, 0x8f, 0x8e];
@@ -21,12 +21,7 @@ struct Cursor {
 }
 
 impl Cursor {
-    // Rust では move はキーワードらしい
-    fn mv<T: Write>(&mut self, out: &mut T) {
-        write!(out, "{}", cursor::Goto(self.current.x, self.current.y)).unwrap();
-    }
-
-    fn left(&mut self, x: u16) -> &mut Cursor {
+    fn left(&mut self, x: u16) -> &mut Self {
         if self.current.x > self.min.x {
             self.current.x -= x;
         }
@@ -34,7 +29,7 @@ impl Cursor {
         self
     }
 
-    fn right(&mut self, x: u16) -> &mut Cursor {
+    fn right(&mut self, x: u16) -> &mut Self {
         if self.current.x < self.max.x {
             self.current.x += x;
         }
@@ -42,7 +37,7 @@ impl Cursor {
         self
     }
 
-    fn up(&mut self, y: u16) -> &mut Cursor {
+    fn up(&mut self, y: u16) -> &mut Self {
         if self.current.y > self.min.y {
             self.current.y -= y;
         }
@@ -50,7 +45,7 @@ impl Cursor {
         self
     }
 
-    fn down(&mut self, y: u16) -> &mut Cursor {
+    fn down(&mut self, y: u16) -> &mut Self {
         // モードラインに入らないように
         if self.current.y < self.max.y - 1 {
             self.current.y += y;
@@ -59,140 +54,175 @@ impl Cursor {
         self
     }
 
-    fn head(&mut self) -> &mut Cursor {
-        self.current.x = 1;
+    fn head(&mut self) -> &mut Self {
+        self.current.x = self.min.x;
 
         self
     }
 
-    fn tail(&mut self) -> &mut Cursor {
+    fn tail(&mut self) -> &mut Self {
         self.current.x = self.max.x;
 
         self
     }
 
-    fn prev_line(&mut self) -> &mut Cursor {
+    fn prev_line(&mut self) -> &mut Self {
         self.head().up(1)
     }
 
-    fn next_line(&mut self) -> &mut Cursor {
+    fn next_line(&mut self) -> &mut Self {
         self.head().down(1)
     }
 }
 
-fn preprocess<T: Write>(out: &mut T, cursor: &mut Cursor) {
-    clear_terminal(out);
-    initialize_mode_line(out, cursor);
-    refresh_mode_line(out, cursor);
-
-    out.flush().unwrap();
+struct Terminal {
+    top_left: Coordinate,
+    bottom_right: Coordinate
 }
 
-fn postprocess<T: Write>(out: &mut T) {
-    clear_terminal(out);
-
-    out.flush().unwrap();
+struct Editor {
+    out: RawTerminal<Stdout>,
+    cursor: Cursor
 }
 
-fn clear_terminal<T: Write>(out: &mut T) {
-    write!(out, "{}{}", clear::All, cursor::Goto(1, 1)).unwrap();
+macro_rules! move_cursor {
+    ($instance: ident, $method: ident $(, $params: expr)*) => {
+        {
+            $instance.cursor.$method($($params ,)*);
+            write!(
+                $instance.out,
+                "{}",
+                cursor::Goto($instance.cursor.current.x, $instance.cursor.current.y)
+            ).unwrap();
+        }
+    };
 }
 
-fn initialize_mode_line<T: Write>(out: &mut T, cursor: &mut Cursor) {
-    write!(
-        out,
-        "{}{}{}{}{}{}{}",
-        cursor::Hide,
-        cursor::Goto(1, cursor.max.y),
-        color::Bg(color::Yellow),
-        " ".repeat(cursor.max.x.try_into().unwrap()),
-        color::Bg(color::Reset),
-        cursor::Goto(1, 1),
-        cursor::Show
-    ).unwrap();
-}
+impl Editor {
+    fn preprocess(&mut self) {
+        self.clear();
+        self.initialize_mode_line();
+        self.refresh_mode_line();
+        self.out.flush().unwrap();
+    }
 
-fn refresh_mode_line<T: Write>(out: &mut T, cursor: &mut Cursor) {
-    let x = cursor.current.x;
-    let y = cursor.current.y;
+    fn postprocess(&mut self) {
+        self.clear();
+        self.out.flush().unwrap();
+    }
 
-    write!(
-        out,
-        "{}{}{}{}{}{}{}{}{}",
-        cursor::Hide,
-        cursor::Goto(1, cursor.max.y),
-        color::Bg(color::Yellow),
-        color::Fg(color::Black),
-        format!("({:>3},{:>3})", x, y),
-        color::Fg(color::Reset),
-        color::Bg(color::Reset),
-        cursor::Goto(x, y),
-        cursor::Show
-    ).unwrap();
+    fn clear(&mut self) {
+        write!(self.out, "{}{}", clear::All, cursor::Goto(1, 1)).unwrap();
+    }
+
+    fn initialize_mode_line(&mut self) {
+        write!(
+            self.out,
+            "{}{}{}{}{}{}{}",
+            cursor::Hide,
+            cursor::Goto(1, self.cursor.max.y),
+            color::Bg(color::Yellow),
+            " ".repeat(self.cursor.max.x.try_into().unwrap()),
+            color::Bg(color::Reset),
+            cursor::Goto(1, 1),
+            cursor::Show
+        ).unwrap();
+    }
+
+    fn refresh_mode_line(&mut self) {
+        let x = self.cursor.current.x;
+        let y = self.cursor.current.y;
+
+        write!(
+            self.out,
+            "{}{}{}{}{}{}{}{}{}",
+            cursor::Hide,
+            cursor::Goto(1, self.cursor.max.y),
+            color::Bg(color::Yellow),
+            color::Fg(color::Black),
+            format!("({:>3},{:>3})", x, y),
+            color::Fg(color::Reset),
+            color::Bg(color::Reset),
+            cursor::Goto(x, y),
+            cursor::Show
+        ).unwrap();
+    }
 }
 
 fn main() {
+    let return_symbol = from_utf8(&RETURN_SYMBOL).unwrap();
+
     let terminal_size = termion::terminal_size().unwrap();
-    // Termion が (1, 1)-based であるため、カーソルの座標を保持する構造体も
-    // (1, 1)-based にしておく
-    let mut cursor = Cursor {
-        current: Coordinate {
+    // Termion が (1, 1)-based であるため、座標を保持する構造体は (1, 1)-based にしておく
+    let terminal = Terminal {
+        top_left: Coordinate {
             x: 1,
             y: 1
         },
-        max: Coordinate {
+        bottom_right: Coordinate {
             x: terminal_size.0,
             y: terminal_size.1
-        },
-        min: Coordinate {
-            x: 1,
-            y: 1
         }
     };
 
-    let stdin = stdin();
-    let mut stdout = stdout().into_raw_mode().unwrap();
+    let mut editor = Editor {
+        out: std::io::stdout().into_raw_mode().unwrap(),
+        cursor: Cursor {
+            current: Coordinate {
+                x: 1,
+                y: 1
+            },
+            min: Coordinate {
+                x: 1,
+                y: 1
+            },
+            max: Coordinate {
+                x: terminal_size.0,
+                y: terminal_size.1
+            }
+        }
+    };
 
-    preprocess(&mut stdout, &mut cursor);
+    editor.preprocess();
 
-    for c in stdin.keys() {
+    for c in std::io::stdin().keys() {
         match c.unwrap() {
             Key::Ctrl('q') => break,
             Key::Left => {
-                cursor.left(1).mv(&mut stdout);
+                move_cursor!(editor, left, 1);
             },
             Key::Right => {
-                cursor.right(1).mv(&mut stdout);
+                move_cursor!(editor, right, 1);
             },
             Key::Up => {
-                cursor.up(1).mv(&mut stdout);
+                move_cursor!(editor, up, 1);
             },
             Key::Down => {
-                cursor.down(1).mv(&mut stdout);
+                move_cursor!(editor, down, 1);
             },
             Key::Char(c) => {
                 match c {
                     '\n' => {
-                        write!(stdout, "{}", from_utf8(&RETURN_SYMBOL).unwrap()).unwrap();
-                        cursor.next_line().mv(&mut stdout);
+                        write!(&mut editor.out, "{}", return_symbol).unwrap();
+                        move_cursor!(editor, next_line);
                     },
                     _ => {
-                        write!(stdout, "{}", c).unwrap();
-                        cursor.right(1).mv(&mut stdout);
+                        write!(&mut editor.out, "{}", c).unwrap();
+                        move_cursor!(editor, right, 1);
                     }
                 }
             },
             _ => {
-                write!(stdout, "<other>").unwrap();
-                cursor.right(7).mv(&mut stdout);
+                write!(&mut editor.out, "*").unwrap();
+                move_cursor!(editor, right, 1);
             }
         }
 
-        refresh_mode_line(&mut stdout, &mut cursor);
-        stdout.flush().unwrap();
+        editor.refresh_mode_line();
+        editor.out.flush().unwrap();
     }
 
-    postprocess(&mut stdout);
+    editor.postprocess();
 
-    // アプリ終了時に termion が後始末をしてターミナルを canonical mode に戻してくれる
+    // アプリ終了時に Termion が後始末をしてターミナルを canonical mode に戻してくれる
 }
