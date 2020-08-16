@@ -171,12 +171,15 @@ fn main() {
                 cursor.down(1).mv(&mut stdout);
             },
             Key::Char(c) => {
-                if c == '\n' {
-                    write!(stdout, "{}", from_utf8(&RETURN_SYMBOL).unwrap()).unwrap();
-                    cursor.next_line().mv(&mut stdout);
-                } else {
-                    write!(stdout, "{}", c).unwrap();
-                    cursor.right(1).mv(&mut stdout);
+                match c {
+                    '\n' => {
+                        write!(stdout, "{}", from_utf8(&RETURN_SYMBOL).unwrap()).unwrap();
+                        cursor.next_line().mv(&mut stdout);
+                    },
+                    _ => {
+                        write!(stdout, "{}", c).unwrap();
+                        cursor.right(1).mv(&mut stdout);
+                    }
                 }
             },
             _ => {
