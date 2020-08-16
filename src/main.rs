@@ -15,6 +15,11 @@ struct Cursor {
 }
 
 impl Cursor {
+    // Rust では move はキーワードらしい
+    fn mv<T: Write>(&mut self, out: &mut T) {
+        write!(out, "{}", cursor::Goto(self.x, self.y)).unwrap();
+    }
+
     fn left(&mut self, x: u16) -> &mut Cursor {
         if self.x > self.x_min {
             self.x -= x;
@@ -46,11 +51,6 @@ impl Cursor {
         }
 
         self
-    }
-
-    fn draw<T: Write>(&mut self, out: &mut T) {
-        write!(out, "{}", cursor::Goto(self.x, self.y)).unwrap();
-        out.flush().unwrap();
     }
 }
 
@@ -105,24 +105,24 @@ fn main() {
         match c.unwrap() {
             Key::Ctrl('q') => break,
             Key::Left => {
-                cursor.left(1).draw(&mut stdout);
+                cursor.left(1).mv(&mut stdout);
             },
             Key::Right => {
-                cursor.right(1).draw(&mut stdout);
+                cursor.right(1).mv(&mut stdout);
             },
             Key::Up => {
-                cursor.up(1).draw(&mut stdout);
+                cursor.up(1).mv(&mut stdout);
             },
             Key::Down => {
-                cursor.down(1).draw(&mut stdout);
+                cursor.down(1).mv(&mut stdout);
             },
             Key::Char(c) => {
-                print!("{}", c);
-                cursor.right(1).draw(&mut stdout);
+                write!(stdout, "{}", c).unwrap();
+                cursor.right(1).mv(&mut stdout);
             },
             _ => {
-                print!("<other>");
-                cursor.right(7).draw(&mut stdout);
+                write!(stdout, "<other>").unwrap();
+                cursor.right(7).mv(&mut stdout);
             }
         }
 
