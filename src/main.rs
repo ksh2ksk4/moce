@@ -54,9 +54,10 @@ impl Cursor {
     }
 }
 
-fn preprocess<T: Write>(out: &mut T, terminal_size: (u16, u16)) {
+fn preprocess<T: Write>(out: &mut T, terminal_size: (u16, u16), cursor: &mut Cursor) {
     clear_terminal(out);
     initialize_mode_line(out, terminal_size);
+    refresh_mode_line(out, terminal_size, cursor);
 
     out.flush().unwrap();
 }
@@ -71,7 +72,7 @@ fn clear_terminal<T: Write>(out: &mut T) {
     write!(out, "{}{}", clear::All, cursor::Goto(1, 1)).unwrap();
 }
 
-fn initialize_mode_line<T: Write>(out: &mut T, terminal_size: (u16, u16)) {
+fn initialize_mode_line<T: Write>(out: &mut T, terminal_sizeg: (u16, u16)) {
     write!(
         out,
         "{}{}{}{}{}{}{}",
@@ -81,6 +82,22 @@ fn initialize_mode_line<T: Write>(out: &mut T, terminal_size: (u16, u16)) {
         " ".repeat(terminal_size.0.try_into().unwrap()),
         color::Bg(color::Reset),
         cursor::Goto(1, 1),
+        cursor::Show
+    ).unwrap();
+}
+
+fn refresh_mode_line<T: Write>(out: &mut T, terminal_size: (u16, u16), cursor: &mut Cursor) {
+    write!(
+        out,
+        "{}{}{}{}{}{}{}{}{}",
+        cursor::Hide,
+        cursor::Goto(1, terminal_size.1),
+        color::Bg(color::Yellow),
+        color::Fg(color::Black),
+        format!("({:>3},{:>3})", cursor.x, cursor.y),
+        color::Fg(color::Reset),
+        color::Bg(color::Reset),
+        cursor::Goto(cursor.x, cursor.y),
         cursor::Show
     ).unwrap();
 }
@@ -101,7 +118,7 @@ fn main() {
     let stdin = stdin();
     let mut stdout = stdout().into_raw_mode().unwrap();
 
-    preprocess(&mut stdout, terminal_size);
+    preprocess(&mut stdout, terminal_size, &mut cursor);
 
     for c in stdin.keys() {
         match c.unwrap() {
@@ -128,6 +145,7 @@ fn main() {
             }
         }
 
+        refresh_mode_line(&mut stdout, terminal_size, &mut cursor);
         stdout.flush().unwrap();
     }
 
