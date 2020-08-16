@@ -57,15 +57,18 @@ impl Cursor {
 fn preprocess<T: Write>(out: &mut T, terminal_size: (u16, u16)) {
     clear_terminal(out);
     initialize_mode_line(out, terminal_size);
+
+    out.flush().unwrap();
 }
 
 fn postprocess<T: Write>(out: &mut T) {
     clear_terminal(out);
+
+    out.flush().unwrap();
 }
 
 fn clear_terminal<T: Write>(out: &mut T) {
     write!(out, "{}{}", clear::All, cursor::Goto(1, 1)).unwrap();
-    out.flush().unwrap();
 }
 
 fn initialize_mode_line<T: Write>(out: &mut T, terminal_size: (u16, u16)) {
@@ -80,7 +83,6 @@ fn initialize_mode_line<T: Write>(out: &mut T, terminal_size: (u16, u16)) {
         cursor::Goto(1, 1),
         cursor::Show
     ).unwrap();
-    out.flush().unwrap();
 }
 
 fn main() {
