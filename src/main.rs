@@ -1,9 +1,13 @@
 use std::convert::TryInto;
 use std::io::{stdin, stdout, Write};
+use std::str::from_utf8;
 use termion::{clear, color, cursor};
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::IntoRawMode;
+
+// 改行は⏎(U+23ce: RETURN SYMBOL)で表示(UTF-8 では 0xe28f8e)
+const RETURN_SYMBOL: [u8; 3] = [0xe2, 0x8f, 0x8e];
 
 struct Coordinate {
     x: u16,
@@ -53,6 +57,26 @@ impl Cursor {
         }
 
         self
+    }
+
+    fn head(&mut self) -> &mut Cursor {
+        self.current.x = 1;
+
+        self
+    }
+
+    fn tail(&mut self) -> &mut Cursor {
+        self.current.x = self.max.x;
+
+        self
+    }
+
+    fn prev_line(&mut self) -> &mut Cursor {
+        self.head().up(1)
+    }
+
+    fn next_line(&mut self) -> &mut Cursor {
+        self.head().down(1)
     }
 }
 
@@ -147,8 +171,13 @@ fn main() {
                 cursor.down(1).mv(&mut stdout);
             },
             Key::Char(c) => {
-                write!(stdout, "{}", c).unwrap();
-                cursor.right(1).mv(&mut stdout);
+                if c == '\n' {
+                    write!(stdout, "{}", from_utf8(&RETURN_SYMBOL).unwrap()).unwrap();
+                    cursor.next_line().mv(&mut stdout);
+                } else {
+                    write!(stdout, "{}", c).unwrap();
+                    cursor.right(1).mv(&mut stdout);
+                }
             },
             _ => {
                 write!(stdout, "<other>").unwrap();
