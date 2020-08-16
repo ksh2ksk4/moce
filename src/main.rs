@@ -55,27 +55,38 @@ impl Cursor {
 }
 
 fn preprocess<T: Write>(out: &mut T, terminal_size: (u16, u16)) {
-    // cursor::Goto() は (1, 1)-based
+    clear_terminal(out);
+    initialize_mode_line(out, terminal_size);
+}
+
+fn postprocess<T: Write>(out: &mut T) {
+    clear_terminal(out);
+}
+
+fn clear_terminal<T: Write>(out: &mut T) {
+    write!(out, "{}{}", clear::All, cursor::Goto(1, 1)).unwrap();
+    out.flush().unwrap();
+}
+
+fn initialize_mode_line<T: Write>(out: &mut T, terminal_size: (u16, u16)) {
     write!(
         out,
-        "{}{}{}{}{}{}",
-        clear::All,
+        "{}{}{}{}{}{}{}",
+        cursor::Hide,
         cursor::Goto(1, terminal_size.1),
         color::Bg(color::Yellow),
         " ".repeat(terminal_size.0.try_into().unwrap()),
         color::Bg(color::Reset),
-        cursor::Goto(1, 1)
+        cursor::Goto(1, 1),
+        cursor::Show
     ).unwrap();
     out.flush().unwrap();
 }
 
-fn postprocess<T: Write>(out: &mut T) {
-    write!(out, "{}{}", clear::All, cursor::Goto(1, 1)).unwrap();
-}
-
 fn main() {
     let terminal_size = termion::terminal_size().unwrap();
-    // カーソルの座標を保持する構造体も (1, 1)-based にしておく
+    // cursor::Goto() が (1, 1)-based であるため、カーソルの座標を保持する構造体も
+    // (1, 1)-based にしておく
     let mut cursor = Cursor {
         x: 1,
         x_max: terminal_size.0,
