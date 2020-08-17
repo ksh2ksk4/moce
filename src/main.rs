@@ -190,17 +190,27 @@ fn main() {
     for c in std::io::stdin().keys() {
         match c.unwrap() {
             Key::Ctrl('q') => break,
-            Key::Left => {
+            Key::Ctrl('b') | Key::Left => {
                 move_cursor!(editor, left, 1);
             },
-            Key::Right => {
+            Key::Ctrl('f') | Key::Right => {
                 move_cursor!(editor, right, 1);
             },
-            Key::Up => {
+            Key::Ctrl('p') | Key::Up => {
                 move_cursor!(editor, up, 1);
             },
-            Key::Down => {
+            Key::Ctrl('n') | Key::Down => {
                 move_cursor!(editor, down, 1);
+            },
+            Key::Ctrl(c) => {
+                // C-i は ??
+                // C-j, C-m は \n
+                match c {
+                    _ => {
+                        write!(&mut editor.out, "^{}", c).unwrap();
+                        move_cursor!(editor, right, 2);
+                    }
+                }
             },
             Key::Char(c) => {
                 match c {
