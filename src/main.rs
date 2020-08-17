@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::convert::TryInto;
 use std::io::{Stdout, Write};
 use std::str::from_utf8;
@@ -5,9 +6,6 @@ use termion::{clear, color, cursor};
 use termion::event::Key;
 use termion::input::TermRead;
 use termion::raw::{IntoRawMode, RawTerminal};
-
-// 改行は⏎(U+23ce: RETURN SYMBOL)で表示(UTF-8 では 0xe28f8e)
-const RETURN_SYMBOL: [u8; 3] = [0xe2, 0x8f, 0x8e];
 
 struct Coordinate {
     x: u16,
@@ -80,9 +78,10 @@ struct Terminal {
     bottom_right: Coordinate
 }
 
-struct Editor {
+struct Editor<'a> {
     out: RawTerminal<Stdout>,
-    cursor: Cursor
+    cursor: Cursor,
+    special_chars: HashMap<char, &'a str>
 }
 
 macro_rules! move_cursor {
@@ -98,11 +97,15 @@ macro_rules! move_cursor {
     };
 }
 
-impl Editor {
+impl Editor<'_> {
     fn preprocess(&mut self) {
         self.clear();
         self.initialize_mode_line();
         self.refresh_mode_line();
+
+        // 改行は⏎(U+23ce: RETURN SYMBOL)で表示(UTF-8 では 0xe28f8e)
+        self.special_chars.insert('\n', from_utf8(&[0xe2, 0x8f, 0x8e]).unwrap());
+
         self.out.flush().unwrap();
     }
 
@@ -150,8 +153,6 @@ impl Editor {
 }
 
 fn main() {
-    let return_symbol = from_utf8(&RETURN_SYMBOL).unwrap();
-
     let terminal_size = termion::terminal_size().unwrap();
     // Termion が (1, 1)-based であるため、座標を保持する構造体は (1, 1)-based にしておく
     let terminal = Terminal {
@@ -180,7 +181,8 @@ fn main() {
                 x: terminal_size.0,
                 y: terminal_size.1
             }
-        }
+        },
+        special_chars: HashMap::new()
     };
 
     editor.preprocess();
@@ -203,7 +205,12 @@ fn main() {
             Key::Char(c) => {
                 match c {
                     '\n' => {
-                        write!(&mut editor.out, "{}", return_symbol).unwrap();
+                        write!(
+                            &mut editor.out,
+                            "{}{}",
+                            editor.special_chars.get(&c).unwrap(),
+                            "\r\n"
+                        ).unwrap();
                         move_cursor!(editor, next_line);
                     },
                     _ => {
